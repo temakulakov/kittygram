@@ -32,7 +32,7 @@ class Event(models.Model):
     created_at = models.DateTimeField('Создана', auto_now_add=True)
 
     class Meta:
-        verbose_name = 'кото-встреча'
+        verbose_name = 'кото-встречу'
         verbose_name_plural = 'Кото-встречи'
         ordering = ('starts_at',)
         constraints = (
