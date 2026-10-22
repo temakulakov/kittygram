@@ -1,0 +1,14 @@
+[Unit]
+Description=Gunicorn daemon for Kittygram backend
+After=network.target
+
+[Service]
+User=kittygram
+Group=www-data
+WorkingDirectory=/opt/kittygram/backend
+EnvironmentFile=/opt/kittygram/.env
+ExecStart=/opt/kittygram/venv/bin/gunicorn --bind 127.0.0.1:8001 --workers 2 kittygram_backend.wsgi:application
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
