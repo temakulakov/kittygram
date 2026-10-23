@@ -1,19 +1,26 @@
 from django.db.models import F
+from django.utils import timezone
 from django_filters import rest_framework as filters
 
 from .models import Event, Registration
 
 
 class EventFilter(filters.FilterSet):
-    city = filters.CharFilter(lookup_expr='iexact')
+    city = filters.CharFilter(lookup_expr='icontains')
     date_from = filters.DateFilter(field_name='starts_at', lookup_expr='date__gte')
     date_to = filters.DateFilter(field_name='starts_at', lookup_expr='date__lte')
     organizer = filters.CharFilter(field_name='organizer__username')
     has_free_places = filters.BooleanFilter(method='filter_has_free_places')
+    upcoming = filters.BooleanFilter(method='filter_upcoming')
 
     class Meta:
         model = Event
         fields = ('city', 'is_cancelled', 'organizer')
+
+    def filter_upcoming(self, queryset, name, value):
+        if value:
+            return queryset.filter(starts_at__gt=timezone.now())
+        return queryset.filter(starts_at__lte=timezone.now())
 
     def filter_has_free_places(self, queryset, name, value):
         if value:

@@ -1,8 +1,12 @@
 import base64
+import binascii
 import datetime as dt
+import io
+import uuid
 
 import webcolors
 from django.core.files.base import ContentFile
+from PIL import Image, ImageOps, UnidentifiedImageError
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -31,12 +35,22 @@ class AchievementSerializer(serializers.ModelSerializer):
 
 
 class Base64ImageField(serializers.ImageField):
+    max_side = 1600
+
     def to_internal_value(self, data):
         if isinstance(data, str) and data.startswith('data:image'):
-            format, imgstr = data.split(';base64,')
-            ext = format.split('/')[-1]
-
-            data = ContentFile(base64.b64decode(imgstr), name='temp.' + ext)
+            try:
+                imgstr = data.split(';base64,')[1]
+                image = Image.open(io.BytesIO(base64.b64decode(imgstr)))
+                image = ImageOps.exif_transpose(image).convert('RGB')
+            except (IndexError, binascii.Error, UnidentifiedImageError):
+                raise serializers.ValidationError(
+                    'Не удалось прочитать изображение.'
+                )
+            image.thumbnail((self.max_side, self.max_side))
+            buffer = io.BytesIO()
+            image.save(buffer, format='JPEG', quality=85)
+            data = ContentFile(buffer.getvalue(), name=f'{uuid.uuid4().hex}.jpg')
 
         return super().to_internal_value(data)
 
@@ -44,6 +58,7 @@ class Base64ImageField(serializers.ImageField):
 class CatSerializer(serializers.ModelSerializer):
     achievements = AchievementSerializer(required=False, many=True)
     color = Hex2NameColor()
+    owner_name = serializers.CharField(source='owner.username', read_only=True)
     age = serializers.SerializerMethodField()
     image = Base64ImageField(required=False, allow_null=True)
     image_url = serializers.SerializerMethodField(
@@ -55,7 +70,7 @@ class CatSerializer(serializers.ModelSerializer):
         model = Cat
         fields = (
             'id', 'name', 'color', 'birth_year', 'achievements',
-            'owner', 'age', 'image', 'image_url'
+            'owner', 'owner_name', 'age', 'image', 'image_url'
         )
         read_only_fields = ('owner',)
 

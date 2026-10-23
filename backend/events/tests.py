@@ -1,8 +1,11 @@
+import base64
+import io
 from datetime import timedelta
 
 from cats.models import Cat
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -175,6 +178,29 @@ class EventApiTests(APITestCase):
         self.assertEqual(response.data['count'], 1)
         self.assertEqual(response.data['results'][0]['participants_count'], 1)
 
+    def test_deleting_cat_promotes_waitlist(self):
+        self.join(self.alice, self.barsik)
+        self.join(self.bob, self.tom)
+        self.join(self.carol, self.vaska)
+        self.client.force_authenticate(self.alice)
+        response = self.client.delete(f'/api/cats/{self.barsik.id}/')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(
+            Registration.objects.get(cat=self.vaska).status,
+            Registration.ACTIVE)
+
+    def test_upcoming_filter(self):
+        Event.objects.create(
+            title='Прошедшая', city='Москва', address='Арбат',
+            starts_at=timezone.now() - timedelta(days=2),
+            ends_at=timezone.now() - timedelta(days=2, hours=-2),
+            capacity=5, organizer=self.organizer,
+        )
+        response = self.client.get('/api/events/?upcoming=true')
+        self.assertEqual(response.data['count'], 1)
+        response = self.client.get('/api/events/?upcoming=false')
+        self.assertEqual(response.data['count'], 1)
+
 
 class CatPermissionTests(APITestCase):
 
@@ -186,3 +212,28 @@ class CatPermissionTests(APITestCase):
         self.client.force_authenticate(stranger)
         response = self.client.patch(f'/api/cats/{cat.id}/', {'name': 'Мой'})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_image_is_resized_and_owner_name_returned(self):
+        owner = User.objects.create_user('photo_owner', password='pass')
+        buffer = io.BytesIO()
+        Image.new('RGB', (3000, 2000), 'orange').save(buffer, format='PNG')
+        data = 'data:image/png;base64,' + base64.b64encode(
+            buffer.getvalue()).decode()
+        self.client.force_authenticate(owner)
+        response = self.client.post('/api/cats/', {
+            'name': 'Фотик', 'color': '#000000', 'birth_year': 2020,
+            'image': data}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['owner_name'], 'photo_owner')
+        cat = Cat.objects.get(pk=response.data['id'])
+        self.assertEqual(max(cat.image.width, cat.image.height), 1600)
+        cat.image.delete()
+
+    def test_broken_image_is_rejected(self):
+        owner = User.objects.create_user('broken', password='pass')
+        self.client.force_authenticate(owner)
+        response = self.client.post('/api/cats/', {
+            'name': 'Битый', 'color': '#000000', 'birth_year': 2020,
+            'image': 'data:image/png;base64,bm90LWFuLWltYWdl'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('image', response.data)
