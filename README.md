@@ -6,6 +6,10 @@
 
 Стек: Python 3.12, Django 5.1, DRF, Djoser, PostgreSQL, Gunicorn, Nginx, Docker Compose.
 
+Зависимости бэкенда — `backend/requirements.txt` (Django, djangorestframework, djoser, djangorestframework-simplejwt, django-filter, drf-spectacular, Pillow, psycopg2-binary, gunicorn), фронтенда — `frontend/package.json` (React 17, react-router-dom 5).
+
+В интерфейсе есть лента котиков с поиском и фильтром по цвету, страница котика, форма с загрузкой фото, список встреч, страница встречи с записью, листом ожидания и отменой записи, раздел «Мои записи».
+
 ## Запуск
 
 ```bash
@@ -73,7 +77,7 @@ DJANGO_DEBUG=True python manage.py runserver
 docker compose exec backend python manage.py test
 ```
 
-Коллекция Postman — в папке `postman/`, запускать целиком на тестовых данных.
+Коллекция Postman — в папке `postman/`, запускать целиком на тестовых данных. При пуше в `main` тесты, flake8 и сборка фронтенда запускаются в GitHub Actions.
 
 ## Деплой без Docker
 
